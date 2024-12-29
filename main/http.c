@@ -2,6 +2,7 @@
 #include <esp_http_server.h>
 #include <time.h>
 #include <esp_log.h>
+#include <esp_wifi.h>
 
 #include "measurement.h"
 
@@ -38,13 +39,34 @@ void update_sensor(measurement_t new_measurement) {
 static esp_err_t request_handler(httpd_req_t *req) {
     char response[JSON_BUFFER_SIZE];
     int offset = 0;
-    offset += snprintf(response + offset, JSON_BUFFER_SIZE - offset, "{\"timestamp\": \"%lld\", \"sensors\": [", time(NULL));
+
+    char bssid[18];
+    int8_t wifi_rssi = -1;
+
+    wifi_ap_record_t ap_info;
+    if (esp_wifi_sta_get_ap_info(&ap_info) == ESP_OK) {
+        sprintf(bssid, "%02X:%02X:%02X:%02X:%02X:%02X",
+            ap_info.bssid[0], ap_info.bssid[1], ap_info.bssid[2],
+            ap_info.bssid[3], ap_info.bssid[4], ap_info.bssid[5]);
+        wifi_rssi = ap_info.rssi;
+    }
+
+    offset += snprintf(response + offset, JSON_BUFFER_SIZE - offset,
+        "{"
+        "\"timestamp\": \"%lld\","
+        "\"bssid\": \"%s\","
+        "\"wifi_rssi\": \"%d\","
+        " \"sensors\": [",
+        time(NULL),
+        bssid,
+        wifi_rssi
+        );
 
     for (int i = 0; i < sensor_count; i++) {
         measurement_t* entry = &measurements[i];
         offset += snprintf(response + offset, JSON_BUFFER_SIZE - offset,
             "{"
-            "\"bda\": \"%s\","
+            "\"mac_address\": \"%s\","
             "\"timestamp\": \"%lld\","
             "\"name\": \"%s\","
             "\"ble_rssi\": \"%d\","
