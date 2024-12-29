@@ -1,12 +1,15 @@
 
 #include <esp_bt.h>
-#include "nimble/nimble_port.h"
-#include "nimble/nimble_port_freertos.h"
-#include "host/ble_hs.h"
+#include <nimble/nimble_port.h>
+#include <nimble/nimble_port_freertos.h>
+#include <host/ble_hs.h>
 #include <esp_log.h>
+#include <driver/gpio.h>
 
 #include "measurement.h"
 #include "http.h"
+
+#define LED_GPIO_PIN GPIO_NUM_2
 
 static const char *TAG = "ruuvi-esp32-bluetooth";
 
@@ -19,12 +22,15 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg) {
             if (rc == 0 && fields.mfg_data_len > 0) {
                 const uint8_t *mfg_data = fields.mfg_data;
 
-                if (mfg_data[0] != 0x99
-                    || mfg_data[1] != 0x04
-                    || mfg_data[2] != 0x05) {
+                if (mfg_data[0] != 0x99 || mfg_data[1] != 0x04 || mfg_data[2] != 0x05) {
                     // Not a Ruuvi device or not format 5
                     break;
-                    }
+                }
+
+                // Flash LED
+                gpio_set_level(LED_GPIO_PIN, 1);
+                vTaskDelay(pdMS_TO_TICKS(20));
+                gpio_set_level(LED_GPIO_PIN, 0);
 
                 measurement_t measurement = {};
                 time(&measurement.timestamp);
@@ -106,6 +112,9 @@ void ble_host_task(void *param) {
 }
 
 esp_err_t init_bluetooth(void) {
+    gpio_reset_pin(LED_GPIO_PIN);
+    gpio_set_direction(LED_GPIO_PIN, GPIO_MODE_OUTPUT);
+
     ESP_ERROR_CHECK(nimble_port_init());
     ble_hs_cfg.reset_cb = NULL;
     ble_hs_cfg.sync_cb = start_scan;
