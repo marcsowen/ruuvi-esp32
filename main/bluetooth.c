@@ -6,6 +6,8 @@
 
 #include "measurement.h"
 
+#define SCAN_DURATION 10
+
 static const char *TAG = "ruuvi-esp32-bluetooth";
 
 static esp_ble_scan_params_t ble_scan_params = {
@@ -13,15 +15,22 @@ static esp_ble_scan_params_t ble_scan_params = {
     .own_addr_type = BLE_ADDR_TYPE_PUBLIC,
     .scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL,
     .scan_interval = 0x50,
-    .scan_window = 0x30,
-    .scan_duplicate = BLE_SCAN_DUPLICATE_ENABLE
+    .scan_window = 0x30
   };
 
-static void ble_gap_cb(const esp_gap_ble_cb_event_t event, const esp_ble_gap_cb_param_t *param) {
+void ble_scan_task(void *pvParameters) {
+    while (1) {
+        ESP_LOGI(TAG, "(Re-)starting BLE scan...");
+        ESP_ERROR_CHECK(esp_ble_gap_start_scanning(SCAN_DURATION));
+        vTaskDelay(pdMS_TO_TICKS((SCAN_DURATION + 1) * 1000));
+    }
+}
+
+static void ble_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
     switch (event) {
         case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT: {
-            ESP_LOGI(TAG, "BLE scan params set");
-            esp_ble_gap_start_scanning(10);
+            ESP_LOGI(TAG, "BLE scan params set. Starting scan task...");
+            xTaskCreate(ble_scan_task, "ble_scan_task", 2048, NULL, 5, NULL);
             break;
         }
         case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT: {
@@ -51,25 +60,21 @@ static void ble_gap_cb(const esp_gap_ble_cb_event_t event, const esp_ble_gap_cb_
                 res->scan_rst.bda[3],
                 res->scan_rst.bda[4],
                 res->scan_rst.bda[5]);
-            measurement.temperature = (res->scan_rst.ble_adv[8] << 8 | res->scan_rst.ble_adv[9]) * 0.005;
 
-            if (measurement.temperature > 163.836)
-                measurement.temperature -= 327.68f;
-
-            measurement.humidity = (res->scan_rst.ble_adv[10] << 8 | res->scan_rst.ble_adv[11]) * 0.0025;
-            measurement.pressure = (res->scan_rst.ble_adv[12] << 8 | res->scan_rst.ble_adv[13]) + 50000;
-            measurement.acceleration_x = (res->scan_rst.ble_adv[14] << 8 | res->scan_rst.ble_adv[15]) / 1000.0;
-            measurement.acceleration_y = (res->scan_rst.ble_adv[16] << 8 | res->scan_rst.ble_adv[17]) / 1000.0;
-            measurement.acceleration_z = (res->scan_rst.ble_adv[18] << 8 | res->scan_rst.ble_adv[19]) / 1000.0;
-
-            if (measurement.acceleration_x > 32.767)
-                measurement.acceleration_x -= 65.536;
-            if (measurement.acceleration_y > 32.767)
-                measurement.acceleration_y -= 65.536;
-            if (measurement.acceleration_z > 32.767)
-                measurement.acceleration_z -= 65.536;
-
-            measurement.battery = ((res->scan_rst.ble_adv[20] << 3 | res->scan_rst.ble_adv[21] >> 5) + 1600) / 1000.0;
+            const int16_t temp_raw = res->scan_rst.ble_adv[8] << 8 | res->scan_rst.ble_adv[9];
+            measurement.temperature = temp_raw * 0.005f;
+            const uint16_t humidity_raw = res->scan_rst.ble_adv[10] << 8 | res->scan_rst.ble_adv[11];
+            measurement.humidity = humidity_raw * 0.0025f;
+            const uint16_t pressure_raw = res->scan_rst.ble_adv[12] << 8 | res->scan_rst.ble_adv[13];
+            measurement.pressure = (pressure_raw + 50000) * 0.01f;
+            const int16_t acc_x_raw = res->scan_rst.ble_adv[14] << 8 | res->scan_rst.ble_adv[15];
+            measurement.acceleration_x = acc_x_raw * 0.001f;
+            const int16_t acc_y_raw = res->scan_rst.ble_adv[16] << 8 | res->scan_rst.ble_adv[17];
+            measurement.acceleration_y = acc_y_raw * 0.001f;
+            const int16_t acc_z_raw = res->scan_rst.ble_adv[18] << 8 | res->scan_rst.ble_adv[19];
+            measurement.acceleration_z =acc_z_raw * 0.001f;
+            const uint16_t bat_raw = res->scan_rst.ble_adv[20] << 3 | res->scan_rst.ble_adv[21] >> 5;
+            measurement.battery = (bat_raw + 1600) * 0.001f;
             measurement.txpower = (res->scan_rst.ble_adv[21] & 0x1f) * 2 - 40;
             measurement.moves = res->scan_rst.ble_adv[22];
             measurement.sequence = res->scan_rst.ble_adv[23] << 8 | res->scan_rst.ble_adv[24];
@@ -81,7 +86,7 @@ static void ble_gap_cb(const esp_gap_ble_cb_event_t event, const esp_ble_gap_cb_
             ESP_LOGI(TAG, "Device Name:    %s", measurement.name);
             ESP_LOGI(TAG, "Temperature:    %.2f C", measurement.temperature);
             ESP_LOGI(TAG, "Humidity:       %.2f %%", measurement.humidity);
-            ESP_LOGI(TAG, "Pressure:       %d hPa", measurement.pressure / 100);
+            ESP_LOGI(TAG, "Pressure:       %.2f hPa", measurement.pressure);
             ESP_LOGI(TAG, "Acceleration X: %.3f G", measurement.acceleration_x);
             ESP_LOGI(TAG, "Acceleration Y: %.3f G", measurement.acceleration_y);
             ESP_LOGI(TAG, "Acceleration Z: %.3f G", measurement.acceleration_z);
@@ -97,18 +102,19 @@ static void ble_gap_cb(const esp_gap_ble_cb_event_t event, const esp_ble_gap_cb_
             break;
         }
         default: {
+            ESP_LOGI(TAG, "Unknown event: %d", event);
             break;
         }
     }
 }
 
 esp_err_t init_bluetooth(void) {
-    esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+    ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
     esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    esp_bt_controller_init(&cfg);
-    esp_bt_controller_enable(ESP_BT_MODE_BLE);
-    esp_bluedroid_init();
-    esp_bluedroid_enable();
+    ESP_ERROR_CHECK(esp_bt_controller_init(&cfg));
+    ESP_ERROR_CHECK(esp_bt_controller_enable(ESP_BT_MODE_BLE));
+    ESP_ERROR_CHECK(esp_bluedroid_init());
+    ESP_ERROR_CHECK(esp_bluedroid_enable());
     esp_ble_gap_register_callback(ble_gap_cb);
     esp_ble_gap_set_scan_params(&ble_scan_params);
 
