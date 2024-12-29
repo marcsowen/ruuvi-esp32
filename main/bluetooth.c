@@ -6,6 +6,7 @@
 #include <esp_log.h>
 
 #include "measurement.h"
+#include "http.h"
 
 static const char *TAG = "ruuvi-esp32-bluetooth";
 
@@ -30,12 +31,8 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg) {
                 measurement.ble_rssi = event->disc.rssi;
 
                 sprintf(measurement.bda, "%02X:%02X:%02X:%02X:%02X:%02X",
-                    event->disc.addr.val[5],
-                    event->disc.addr.val[4],
-                    event->disc.addr.val[3],
-                    event->disc.addr.val[2],
-                    event->disc.addr.val[1],
-                    event->disc.addr.val[0]);
+                    event->disc.addr.val[5], event->disc.addr.val[4], event->disc.addr.val[3],
+                    event->disc.addr.val[2], event->disc.addr.val[1], event->disc.addr.val[0]);
 
                 const int16_t temp_raw = mfg_data[3] << 8 | mfg_data[4];
                 measurement.temperature = temp_raw * 0.005f;
@@ -51,25 +48,27 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg) {
                 measurement.acceleration_z =acc_z_raw * 0.001f;
                 const uint16_t bat_raw = mfg_data[15] << 3 | mfg_data[16] >> 5;
                 measurement.battery = (bat_raw + 1600) * 0.001f;
-                measurement.txpower = (mfg_data[16] & 0x1f) * 2 - 40;
+                measurement.tx_power = (mfg_data[16] & 0x1f) * 2 - 40;
                 measurement.moves = mfg_data[17];
                 measurement.sequence = mfg_data[18] << 8 | mfg_data[19];
 
-                ESP_LOGI(TAG, "");
-                ESP_LOGI(TAG, "Timestamp:      %lld", measurement.timestamp);
-                ESP_LOGI(TAG, "BLE RSSI:       %d", measurement.ble_rssi);
-                ESP_LOGI(TAG, "Device Address: %s", measurement.bda);
-                ESP_LOGI(TAG, "Device Name:    %s", measurement.name);
-                ESP_LOGI(TAG, "Temperature:    %.2f C", measurement.temperature);
-                ESP_LOGI(TAG, "Humidity:       %.2f %%", measurement.humidity);
-                ESP_LOGI(TAG, "Pressure:       %.2f hPa", measurement.pressure);
-                ESP_LOGI(TAG, "Acceleration X: %.3f G", measurement.acceleration_x);
-                ESP_LOGI(TAG, "Acceleration Y: %.3f G", measurement.acceleration_y);
-                ESP_LOGI(TAG, "Acceleration Z: %.3f G", measurement.acceleration_z);
-                ESP_LOGI(TAG, "Battery:        %.3f V", measurement.battery);
-                ESP_LOGI(TAG, "TX Power:       %d dBm", measurement.txpower);
-                ESP_LOGI(TAG, "Moves:          %d", measurement.moves);
-                ESP_LOGI(TAG, "Sequence:       %d", measurement.sequence);
+                // ESP_LOGI(TAG, "");
+                // ESP_LOGI(TAG, "Timestamp:      %lld", measurement.timestamp);
+                // ESP_LOGI(TAG, "BLE RSSI:       %d", measurement.ble_rssi);
+                // ESP_LOGI(TAG, "Device Address: %s", measurement.bda);
+                // ESP_LOGI(TAG, "Device Name:    %s", measurement.name);
+                // ESP_LOGI(TAG, "Temperature:    %.2f C", measurement.temperature);
+                // ESP_LOGI(TAG, "Humidity:       %.2f %%", measurement.humidity);
+                // ESP_LOGI(TAG, "Pressure:       %.2f hPa", measurement.pressure);
+                // ESP_LOGI(TAG, "Acceleration X: %.3f G", measurement.acceleration_x);
+                // ESP_LOGI(TAG, "Acceleration Y: %.3f G", measurement.acceleration_y);
+                // ESP_LOGI(TAG, "Acceleration Z: %.3f G", measurement.acceleration_z);
+                // ESP_LOGI(TAG, "Battery:        %.3f V", measurement.battery);
+                // ESP_LOGI(TAG, "TX Power:       %d dBm", measurement.txpower);
+                // ESP_LOGI(TAG, "Moves:          %d", measurement.moves);
+                // ESP_LOGI(TAG, "Sequence:       %d", measurement.sequence);
+
+                update_sensor(measurement);
             }
             break;
         }

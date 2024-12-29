@@ -5,8 +5,8 @@
 
 typedef struct measurement_t {
     time_t timestamp;
-    char name[25];
     char bda[18];
+    char name[25];
     int ble_rssi;
     float temperature;
     float humidity;
@@ -15,7 +15,7 @@ typedef struct measurement_t {
     float acceleration_y;
     float acceleration_z;
     float battery;
-    int txpower;
+    int tx_power;
     unsigned int moves;
     unsigned int sequence;
 } measurement_t;
