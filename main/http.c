@@ -71,7 +71,6 @@ static esp_err_t request_handler(httpd_req_t *req) {
             "{"
             "\"ble_mac\": \"%s\","
             "\"timestamp\": %lld,"
-            "\"name\": \"%s\","
             "\"ble_rssi\": %d,"
             "\"temperature\": %.2f,"
             "\"humidity\": %.2f,"
@@ -86,7 +85,6 @@ static esp_err_t request_handler(httpd_req_t *req) {
             "}",
             entry->bda,
             entry->timestamp,
-            entry->name,
             entry->ble_rssi,
             entry->temperature,
             entry->humidity,

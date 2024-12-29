@@ -6,7 +6,6 @@
 typedef struct measurement_t {
     time_t timestamp;
     char bda[18];
-    char name[25];
     int ble_rssi;
     float temperature;
     float humidity;
