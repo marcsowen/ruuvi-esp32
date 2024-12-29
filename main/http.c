@@ -2,6 +2,7 @@
 #include <esp_http_server.h>
 #include <time.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <esp_wifi.h>
 
 #include "measurement.h"
@@ -56,11 +57,13 @@ static esp_err_t request_handler(httpd_req_t *req) {
         "{"
         "\"esp_mac\": \"%s\","
         "\"timestamp\": %lld,"
+        "\"uptime\": %lld,"
         "\"bssid\": \"%s\","
         "\"wifi_rssi\": %d,"
         " \"sensors\": [",
         esp_id,
         time(NULL),
+        esp_timer_get_time() / 1000000,
         bssid,
         wifi_rssi
         );
