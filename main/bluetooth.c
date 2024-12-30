@@ -29,8 +29,6 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg) {
 
                 // Flash LED
                 gpio_set_level(LED_GPIO_PIN, 1);
-                vTaskDelay(pdMS_TO_TICKS(20));
-                gpio_set_level(LED_GPIO_PIN, 0);
 
                 measurement_t measurement = {};
                 time(&measurement.timestamp);
@@ -75,6 +73,9 @@ static int ble_gap_event(struct ble_gap_event *event, void *arg) {
                 // ESP_LOGI(TAG, "Sequence:       %d", measurement.sequence);
 
                 update_sensor(measurement);
+
+                vTaskDelay(pdMS_TO_TICKS(50));
+                gpio_set_level(LED_GPIO_PIN, 0);
             }
             break;
         }
