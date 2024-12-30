@@ -1,4 +1,5 @@
 
+#include <esp_app_desc.h>
 #include <esp_http_server.h>
 #include <time.h>
 #include <esp_log.h>
@@ -56,12 +57,14 @@ static esp_err_t request_handler(httpd_req_t *req) {
     offset += snprintf(response + offset, JSON_BUFFER_SIZE - offset,
         "{"
         "\"esp_mac\": \"%s\","
+        "\"version\": \"%s\","
         "\"timestamp\": %lld,"
         "\"uptime\": %lld,"
         "\"bssid\": \"%s\","
         "\"wifi_rssi\": %d,"
         " \"sensors\": [",
         esp_id,
+        esp_app_get_description()->version,
         time(NULL),
         esp_timer_get_time() / 1000000,
         bssid,
